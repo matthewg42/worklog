@@ -1,0 +1,435 @@
+#!/bin/bash
+# Template shell script
+# Some script scope variables and function defs first.  To skip to the 
+# main program, search for the comment "Start Main Program"
+###############################################################################
+# basename and full path of program
+PROGNAME="Simple work logging / diary system"
+VERSION="2.00"
+AUTHOR="Mouse, Jun 2017"
+WORKLOG=""
+ENTRY_DATETIME=""
+ENTRY_FILE=""
+YYYYMMDD=""
+YYYYMM=""
+LOG_DIR_OVERRIDE=0
+LOG_DIR="log"
+ONELINE=0
+READ=0
+ECHO=0
+
+THISSCRIPT=${0##*/}
+THISSCRIPT_FULL="$0"
+
+# Debugging level.  Set this with the -D option:
+# -ve = ERROR
+#   0 = WARNING
+# +ve = DEBUG
+DBLEV_S=${DBLEV_S:-0}
+
+main () {
+    if [ "$1" = "--help" ] || [ "$1" = "-help" ]; then
+        usage 0
+    fi
+
+    if [ "$1" = "--version" ] || [ "$1" = "-version" ]; then
+        show_version
+    fi
+
+    set -- `getopt vhD:iml:re $@`
+    if [ $? -ne 0 ]; then
+        usage 2
+    fi
+
+    while [ $# -gt 0 ]; do
+        case $1 in
+        -D)
+            DBLEV_S=$2
+            shift 2
+            ;;
+        -e)
+            ECHO=1
+            shift
+            ;;
+        -h)
+            usage 0
+            shift
+            ;;
+        -i)
+            make_worklog
+            shift
+            ;;
+        -l)
+            LOG_DIR="$2"
+            LOG_DIR_OVERRIDE=1
+            shift 2
+            ;;
+        -m)
+            ONELINE=1
+            shift
+            ;;
+        -r)
+            READ=1
+            shift
+            ;;
+        -v)
+            show_version
+            shift
+            ;;
+        -w)
+            WORKLOG="$2"
+            shift 2
+            ;;
+        --)
+            shift
+            break
+            ;;
+        esac
+    done
+
+    init
+
+    db_out 2 "command line parsed, parameters now: $@"
+    db_out 2 "WORKLOG        = $WORKLOG"
+    db_out 2 "LOG_DIR        = $LOG_DIR"
+    db_out 2 "ENTRY_FILE     = $ENTRY_FILE"
+    db_out 2 "ONELINE        = $ONELINE"
+    db_out 2 "ENTRY_DATETIME = $ENTRY_DATETIME"
+
+    if [ $READ -eq 1 ]; then
+        "${PAGER:-cat}" "$ENTRY_FILE"
+        exit
+    elif [ $ONELINE -eq 1 ]; then
+        [ $# -eq 0 ] && errex 5 "ERROR: you must specify a message"
+        add_single_liner "$@"
+    else
+        edit_worklog "$@"
+    fi
+
+    if [ $ECHO -eq 1 ]; then
+        cat "$ENTRY_FILE"
+    fi
+    
+}
+
+# Work out where we're going to put out log entry and set up
+# all the main variables used by other fuctions
+init () {
+    db_out 3 "init $@"
+    # If WORKLOG is not already set (i.e. using the -w option), find 
+    # the path to a .worklog file in PWD, or any of it's parents back
+    # to the root directory.
+    if [ -z "$WORKLOG" ]; then
+        WORKLOG="$(find_worklogrc)" || errex 1 "ERROR: cannot find .worklog"
+    fi
+    # Make path a real path
+    WORKLOG="$(realpath "$WORKLOG")"
+
+    # Change into the directory where WORKLOG is found so we get correct
+    # relative paths to logs
+    cd "${WORKLOG%/*}"
+
+    # We can over-ride the LOG_DIR from the .worklog file by speficying it
+    # on the command line with the -l option
+    if [ $LOG_DIR_OVERRIDE -eq 0 ]; then
+        # Look in WORKLOG to get the (relative) path to log files
+        LOG_DIR="$(sed -n '/^[ \t]*LOG_DIR[\t ]*=/ { s/[ \t]*LOG_DIR[\t ]*=[\t ]*"\(.*\)"[\t ]*$/\1/; p }' "$WORKLOG")"
+    fi
+    # Make path a real path
+    LOG_DIR="$(realpath "$LOG_DIR")"
+
+    # Set the time and date for this log entry
+    ENTRY_DATETIME="$(date "+%Y-%m-%d %T (%a)")"
+    YYYYMMDD="${ENTRY_DATETIME%% *}"
+    YYYYMM="${YYYYMMDD%-*}"
+    ENTRY_FILE="$LOG_DIR/$YYYYMM/$YYYYMMDD"
+}
+
+# Add a single line entry to the log file with parameters being the
+# text in that entry
+# It will look like this (where ... is the expanded parameters):
+#
+# YYYY-MM-DD HH:MM:SS (day): ...
+add_single_liner () {
+    db_out 3 "add_single_liner $@"
+    make_log_file
+    make_entry "$@"
+}
+
+# Add a multi-line entry to the log file. This means adding the 
+# following to the log:
+# [blank line]
+# [blank line]
+# YYYY-MM-DD HH:MM:SS (day)[: Optional heading]
+# [blank line]
+# [edited text in vi]
+# [blank line]
+edit_worklog () {
+    db_out 3 "edit_worklog $@"
+    make_log_file
+    echo "" >> "$ENTRY_FILE"
+    make_entry "$@"
+    l="$(tail -1 "$ENTRY_FILE")" 
+    echo "$l" |sed 's/./-/g' >> "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+    vim -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+}
+
+# If the log file does not already exist (i.e. no logs yet today), create it
+# and if necessary the directory in which it will reside.  Exit with failure
+# if this cannot be done
+make_log_file () {
+    db_out 3 "make_log_file $@"
+    if [ ! -e "${ENTRY_FILE%/*}" ]; then
+        mkdir -p "${ENTRY_FILE%/*}" || errex 1 "ERROR: can't make dir for log file"
+    fi
+
+    if [ ! -e "$ENTRY_FILE" ]; then
+        touch "$ENTRY_FILE" || errex 2 "ERROR: cannot create $ENTRY_FILE"
+    fi
+}
+
+# Make a new entry in $ENTRY_FILE.  If the last line in the file does not
+# have a newline for some reason, add that first, then add a timestamped line
+# with optional comment on that line
+make_entry () {
+    db_out 3 "make_entry $@"
+
+    # Check the file is either empty, or has a \n on the last line
+    # if not, add a \n to the last line of the file
+    if [ -s "$ENTRY_FILE" ]; then
+        tail -1 "$ENTRY_FILE" |od -tc |fgrep -q '\n' || echo "" >> "$ENTRY_FILE"
+    fi
+
+    # Add the timestamp, and if parameters are passed, a heading
+    if [ $# -gt 0 ]; then
+        echo "$ENTRY_DATETIME: $@" >> "$ENTRY_FILE"
+    else
+        echo "$ENTRY_DATETIME" >> "$ENTRY_FILE"
+    fi
+}
+
+# Create a .worklog file in the current working directory, with 
+make_worklog () {
+    db_out 3 "make_worklog $@"
+    db_out 3 "LOG_DIR=$LOG_DIR"
+    if [ ! -e "$LOG_DIR" ]; then
+        mkdir -p "$LOG_DIR" || errex 3 "ERROR: failed to create log dir: $LOG_DIR"
+    fi
+
+    WORKLOG="$PWD/.worklog"
+    [ -e "$WORKLOG" ] && errex 2 "ERROR: $WORKLOG already exists"
+    
+    echo "# .worklog created by $THISSCRIPT at $(date "+%Y-%m-%d %T (%a)")" | tee "$WORKLOG"
+    echo "# Note: LOG_DIR is relative to the location of this .worklog file" |tee -a "$WORKLOG"
+    echo "LOG_DIR = \"$LOG_DIR\"" | tee -a "$WORKLOG"
+    echo ""
+    ls -ld "$WORKLOG" "$LOG_DIR"
+    exit 0
+}
+
+find_worklogrc () {
+    db_out 3 "find_worklogrc $@"
+    D=$PWD
+    while true; do
+        # Find the worklog file
+        db_out 3 "looking for $D/.worklog"
+        if [ -e "$D/.worklog" ]; then
+            db_out 3 "$D/.worklog found"
+            echo "$D/.worklog"
+            return 0
+        fi
+
+        # If we get to the root and there is no worklog, give up
+        if [ "$D" = "" ]; then
+            db_out 3 ".worklog not found anywhere, returning 1"
+            return 1
+        fi
+
+        D="${D%/*}"
+    done
+}
+
+# Some useful function definitions
+usage () {
+    pod2usage -v 2 $THISSCRIPT_FULL
+    exit ${1:-0}
+}
+
+# Dump version info to stdout and exit
+show_version () {
+    echo "$PROGNAME; version $VERSION"
+    echo "$AUTHOR"
+    exit 0
+}
+
+# usage example: db_out 0 "a warning message"
+db_out () {
+    meslev="${1:-1}"
+    shift
+    message="$@"
+
+    if [ $meslev -le ${DBLEV_S:-0} ]; then
+        if [ $meslev -lt 0 ]; then
+            mestyp="$THISSCRIPT ERROR[$meslev]:"
+        elif [ $meslev -eq 0 ]; then
+            mestyp="$THISSCRIPT WARNING:"
+        else
+            mestyp="$THISSCRIPT DEBUG[$meslev]:"
+        fi
+
+        echo "$mestyp $message" 1>&2
+    fi
+}
+
+# usage example: errex 1 "ERROR: failed to chooch"
+errex () {
+    e="$1"
+    shift
+    echo "$@" 1>&2
+    exit $e
+}
+
+#
+# End of generic functions and the like
+###############################################################################
+# Start Main Program
+
+main "$@"
+exit 0 # required to prevent shell from choking on the POD docs
+
+__END__
+
+=head1 NAME 
+
+worklog - work logging / diary system
+
+=head1 SYNOPSIS
+
+worklog [options] [message]
+
+=head1 DESCRIPTION
+
+worklog finds a .worklog file in the current working directory or, failing that,
+looks up the directory structure until it finds one.  When it does find one, the
+directory in which it is found is is considered to be the root of the current 
+project (something like .git directories).
+
+The .worklog file is used to provide settings for the current project.  This includes
+a LOG_DIR path, which specifies the location of log files relative to the .worklog
+file.
+
+When worklog is invoked, it finds out the LOG_DIR, and, if necessary creates a log
+file for today's date inside LOG_DIR.  The directory has structure as follows:
+
+    LOG_DIR/
+    LOG_DIR/YYYY-MM/
+    LOG_DIR/YYYY-MM/YYYY-MM-DD
+    
+Log files have a dated entry made and then EDITOR (or vi/vim) is invoked to edit 
+the file.
+
+=head1 OPTIONS
+
+=over
+
+=item B<-d>=I<level>
+
+Print diagnostic messages while executing.  The value of I<level> must be an
+integer.  The higher the number, the more verbose the diagnostic output will
+be.
+
+=item B<-e>
+
+After an entry has been made, echo the latest file to stdout.
+
+=item B<--help> or B<-h>
+
+Print the command line syntax an option details.
+
+=item B<-i>
+
+Create a .worklog file in the current working directory
+
+=item B<-l> I<logdir>
+
+Specify the path to thew log directory, relative to the .worklog file. This
+over-rides the value in the .worklog.
+
+If used with the -i option, this must come before it in the command line
+options, else it will be ignored.
+
+=item B<-m>
+
+Add a one-line quick message into the log - does not put blank lines before 
+or after the entry. Entries look like this:
+
+    YYYY-MM-DD HH:MM:SS: message
+
+...where message is read from command line parameters.  If you use the B<-m>
+option, you must provide a message in the parameters, else nothing will happen.
+
+=item B<-r>
+
+Read the current day's log file using PAGER.
+
+=item B<--version> or B<-v>
+
+Print the program description and version.
+
+=item B<-w> I<path>
+
+Instead of searching for the .worklog file, use I<path>.
+
+=back
+
+ENVIRONMENT
+
+=over
+
+=item DBLEV_S
+
+Set debugging level for script (over-ridden by B<-D> option)
+
+=item EDITOR
+
+Program used to edit enties in the log.
+
+=item PAGER
+
+Program used to view entries in the log (with the -r option).
+
+=back
+
+=head1 LICENSE
+
+worklog is released under the GNU GPL (version 3, 29 June 2007).  A
+copy of the license should have been provided in the distribution of
+the software in a file called "LICENSE.GPL".  If you can't find this, then
+try here: http://www.gnu.org/copyleft/gpl.html
+
+=head1 AUTHOR
+
+Mouse http://orthogonal-systems.co.uk/
+
+=head1 CHANGELOG
+
+=over
+
+=item Date:2017-06-03 Created, Author MNG
+
+Original version.
+
+=back
+
+=head1 BUGS
+
+Please report bugs to the author.
+
+=head1 SEE ALSO
+
+=cut
+
