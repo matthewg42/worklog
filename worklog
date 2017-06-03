@@ -36,7 +36,7 @@ main () {
         show_version
     fi
 
-    set -- `getopt vhD:iml:re $@`
+    set -- `getopt vhD:iml:rew: $@`
     if [ $? -ne 0 ]; then
         usage 2
     fi
