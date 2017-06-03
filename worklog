@@ -255,7 +255,7 @@ find_worklogrc () {
 
 # Some useful function definitions
 usage () {
-    pod2usage -v 2 $THISSCRIPT_FULL
+    pod2usage -v 1 $THISSCRIPT_FULL
     exit ${1:-0}
 }
 
@@ -386,7 +386,7 @@ Instead of searching for the .worklog file, use I<path>.
 
 =back
 
-ENVIRONMENT
+=head1 ENVIRONMENT
 
 =over
 
