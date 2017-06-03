@@ -173,7 +173,18 @@ edit_worklog () {
     echo "$l" |sed 's/./-/g' >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
-    vim -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$ENTRY_FILE"
+
+    [ -z "$EDITOR" ] && EDITOR=vi
+    case "$EDITOR" in
+    vi|vim)
+        $EDITOR -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$ENTRY_FILE"
+        ;;
+    *)
+        # I don't know how editor X wants to be called... so do simple invocation
+        $EDTOR "$ENTRY_FILE"
+        ;;
+    esac
+
     echo "" >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
 }
