@@ -1,9 +1,7 @@
 #!/bin/bash
-# Template shell script
-# Some script scope variables and function defs first.  To skip to the 
-# main program, search for the comment "Start Main Program"
-###############################################################################
-# basename and full path of program
+# AUTHOR: Mouse
+# LICENSE: GNU GPL v3
+
 PROGNAME="Simple work logging / diary system"
 VERSION="2.00"
 AUTHOR="Mouse, Jun 2017"
