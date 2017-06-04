@@ -40,6 +40,13 @@ OPTIONS
    * - Option
      - Parameters
      - Description
+   * - -1
+     - 
+     - Add a one-line quick message into the log - does not put blank lines 
+       before or after the entry.
+   * - -a  
+     - 
+     - Amend existing entry rather than adding a new entry timestamp and padding
    * - -d
      - *level*
      - Print diagnostic messages while executing. The value of *level* must be 
@@ -60,13 +67,17 @@ OPTIONS
        This over-rides the value in the .worklog.  If used with the -i option, 
        this must come before it in the command line options, else it will be 
        ignored.
-   * - -m
-     - 
-     - Add a one-line quick message into the log - does not put blank lines 
-       before or after the entry.
    * - -r  
      - 
      - Read the current day's log file using PAGER.
+   * - -s  
+     - *subject*
+     - Set the subject. The default value is taken from the DEFAULT_SUBJECT
+       value in the ``.worklog`` file, or is "general" if not defined there.
+   * - -S
+     - 
+     - List subjects for current worklog and exit. The default subject is
+       indicated with the text "[default]" to the right of the subject name.
    * - --version, -v
      - 
      - Print the program description and version.

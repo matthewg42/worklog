@@ -6,15 +6,16 @@ PROGNAME="Simple work logging / diary system"
 VERSION="2.00"
 AUTHOR="Mouse, Jun 2017"
 WORKLOG=""
+DEFAULT_SUBJECT="general"
+SUBJECT=""
 ENTRY_DATETIME=""
 ENTRY_FILE=""
 YYYYMMDD=""
 YYYYMM=""
 LOG_DIR_OVERRIDE=0
 LOG_DIR="log"
-ONELINE=0
-READ=0
 ECHO=0
+CMD=edit
 
 THISSCRIPT=${0##*/}
 THISSCRIPT_FULL="$0"
@@ -34,13 +35,18 @@ main () {
         show_version
     fi
 
-    set -- `getopt vhD:iml:rew: $@`
+    goo="$(getopt avhD:i1l:rew:s:S "$@")"
     if [ $? -ne 0 ]; then
         usage 2
     fi
+    set -- $goo
 
     while [ $# -gt 0 ]; do
         case $1 in
+        -a)
+            CMD=amend
+            shift
+            ;;
         -D)
             DBLEV_S=$2
             shift 2
@@ -62,12 +68,20 @@ main () {
             LOG_DIR_OVERRIDE=1
             shift 2
             ;;
-        -m)
-            ONELINE=1
+        -1)
+            CMD="oneline"
             shift
             ;;
         -r)
-            READ=1
+            CMD="read"
+            shift
+            ;;
+        -s)
+            SUBJECT="$2"
+            shift 2
+            ;;
+        -S)
+            CMD="list-subjects"
             shift
             ;;
         -v)
@@ -88,26 +102,34 @@ main () {
     init
 
     db_out 2 "command line parsed, parameters now: $@"
-    db_out 2 "WORKLOG        = $WORKLOG"
-    db_out 2 "LOG_DIR        = $LOG_DIR"
-    db_out 2 "ENTRY_FILE     = $ENTRY_FILE"
-    db_out 2 "ONELINE        = $ONELINE"
-    db_out 2 "ENTRY_DATETIME = $ENTRY_DATETIME"
+    db_out 2 "WORKLOG         = $WORKLOG"
+    db_out 2 "LOG_DIR         = $LOG_DIR"
+    db_out 2 "DEFAULT_SUBJECT = $DEFAULT_SUBJECT"
+    db_out 2 "SUBJECT         = $SUBJECT"
+    db_out 2 "ENTRY_FILE      = $ENTRY_FILE"
+    db_out 2 "ENTRY_DATETIME  = $ENTRY_DATETIME"
+    db_out 2 "CMD             = $CMD"
 
-    if [ $READ -eq 1 ]; then
+    case "$CMD" in 
+    amend)
+        amend_worklog "$@"
+        ;;
+    edit)
+        edit_worklog "$@"
+        [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
+        ;;
+    read)
         "${PAGER:-cat}" "$ENTRY_FILE"
-        exit
-    elif [ $ONELINE -eq 1 ]; then
+        ;;
+    oneline)
         [ $# -eq 0 ] && errex 5 "ERROR: you must specify a message"
         add_single_liner "$@"
-    else
-        edit_worklog "$@"
-    fi
-
-    if [ $ECHO -eq 1 ]; then
-        cat "$ENTRY_FILE"
-    fi
-    
+        [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
+        ;;
+    list-subjects)
+        list_subjects
+        ;;
+    esac
 }
 
 # Work out where we're going to put out log entry and set up
@@ -136,11 +158,17 @@ init () {
     # Make path a real path
     LOG_DIR="$(realpath "$LOG_DIR")"
 
+    # If default subject specified in WORKLOG file, set it, and then set the SUBJECT 
+    # if it has not already been specified with the -s option
+    s="$(sed -n '/^[ \t]*DEFAULT_SUBJECT[\t ]*=/ { s/[ \t]*DEFAULT_SUBJECT[\t ]*=[\t ]*"\(.*\)"[\t ]*$/\1/; p }' "$WORKLOG")"
+    [ ! -z "$s" ] && DEFAULT_SUBJECT="$s"
+    [ -z "$SUBJECT" ] && SUBJECT="$DEFAULT_SUBJECT"
+
     # Set the time and date for this log entry
     ENTRY_DATETIME="$(date "+%Y-%m-%d %T (%a)")"
     YYYYMMDD="${ENTRY_DATETIME%% *}"
     YYYYMM="${YYYYMMDD%-*}"
-    ENTRY_FILE="$LOG_DIR/$YYYYMM/$YYYYMMDD"
+    ENTRY_FILE="$LOG_DIR/$SUBJECT/$YYYYMM/$YYYYMMDD"
 }
 
 # Add a single line entry to the log file with parameters being the
@@ -152,6 +180,10 @@ add_single_liner () {
     db_out 3 "add_single_liner $@"
     make_log_file
     make_entry "$@"
+}
+
+amend_worklog () {
+    [ -e "$ENTRY_FILE" ] && edit_file "$ENTRY_FILE" || echo "Nothing there"
 }
 
 # Add a multi-line entry to the log file. This means adding the 
@@ -171,20 +203,22 @@ edit_worklog () {
     echo "$l" |sed 's/./-/g' >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
+    edit_file "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+    echo "" >> "$ENTRY_FILE"
+}
 
+edit_file () {
     [ -z "$EDITOR" ] && EDITOR=vi
     case "$EDITOR" in
     vi|vim)
-        $EDITOR -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$ENTRY_FILE"
+        $EDITOR -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$1"
         ;;
     *)
         # I don't know how editor X wants to be called... so do simple invocation
-        $EDTOR "$ENTRY_FILE"
+        $EDTOR "$1"
         ;;
     esac
-
-    echo "" >> "$ENTRY_FILE"
-    echo "" >> "$ENTRY_FILE"
 }
 
 # If the log file does not already exist (i.e. no logs yet today), create it
@@ -194,6 +228,11 @@ make_log_file () {
     db_out 3 "make_log_file $@"
     if [ ! -e "${ENTRY_FILE%/*}" ]; then
         mkdir -p "${ENTRY_FILE%/*}" || errex 1 "ERROR: can't make dir for log file"
+    fi
+
+    if [ ! -e "$LOG_DIR/$SUBJECT/.wlsubject" ]; then
+        wls="$LOG_DIR/$SUBJECT/.wlsubject"
+        touch "$wls" || errex 2 "ERROR: cannot create: \"$wls\""
     fi
 
     if [ ! -e "$ENTRY_FILE" ]; then
@@ -238,6 +277,17 @@ make_worklog () {
     echo ""
     ls -ld "$WORKLOG" "$LOG_DIR"
     exit 0
+}
+
+# print a list of known subjects and exit
+list_subjects () {
+    for f in "$LOG_DIR"/*; do
+        if [ -e "$f/.wlsubject" ]; then
+            s="${f##*/}"
+            [ "$s" = "$DEFAULT_SUBJECT" ] && s="$s [default]"
+            echo "$s"
+        fi
+    done
 }
 
 find_worklogrc () {
@@ -335,8 +385,9 @@ When worklog is invoked, it finds out the LOG_DIR, and, if necessary creates a l
 file for today's date inside LOG_DIR.  The directory has structure as follows:
 
     LOG_DIR/
-    LOG_DIR/YYYY-MM/
-    LOG_DIR/YYYY-MM/YYYY-MM-DD
+    LOG_DIR/SUBJECT
+    LOG_DIR/SUBJECT/YYYY-MM/
+    LOG_DIR/SUBJECT/YYYY-MM/YYYY-MM-DD
     
 Log files have a dated entry made and then EDITOR (or vi/vim) is invoked to edit 
 the file.
@@ -344,6 +395,20 @@ the file.
 =head1 OPTIONS
 
 =over
+
+=item B<-1>
+
+Add a one-line quick message into the log - does not put blank lines before 
+or after the entry. Entries look like this:
+
+    YYYY-MM-DD HH:MM:SS: message
+
+...where message is read from command line parameters.  If you use the B<-1>
+option, you must provide a message in the parameters, else nothing will happen.
+
+=item B<-a>
+
+Amend previous entry rather than edit a new entry (i.e. don't add timestamp).
 
 =item B<-d>=I<level>
 
@@ -371,19 +436,17 @@ over-rides the value in the .worklog.
 If used with the -i option, this must come before it in the command line
 options, else it will be ignored.
 
-=item B<-m>
-
-Add a one-line quick message into the log - does not put blank lines before 
-or after the entry. Entries look like this:
-
-    YYYY-MM-DD HH:MM:SS: message
-
-...where message is read from command line parameters.  If you use the B<-m>
-option, you must provide a message in the parameters, else nothing will happen.
-
 =item B<-r>
 
 Read the current day's log file using PAGER.
+
+=item B<-s> I<subject>
+
+Sets the subject. The default subject is "general".
+
+=item B<-S>
+
+List subjects for the current worklog.
 
 =item B<--version> or B<-v>
 
