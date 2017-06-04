@@ -35,7 +35,7 @@ main () {
         show_version
     fi
 
-    goo="$(getopt avhD:i1l:rew:s:S "$@")"
+    goo="$(getopt avhD:iI1l:rew:s:S "$@")"
     if [ $? -ne 0 ]; then
         usage 2
     fi
@@ -61,6 +61,10 @@ main () {
             ;;
         -i)
             make_worklog
+            shift
+            ;;
+        -I)
+            CMD="show-worklog"
             shift
             ;;
         -l)
@@ -118,16 +122,21 @@ main () {
         edit_worklog "$@"
         [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
         ;;
-    read)
-        "${PAGER:-cat}" "$ENTRY_FILE"
+    list-subjects)
+        list_subjects
         ;;
     oneline)
         [ $# -eq 0 ] && errex 5 "ERROR: you must specify a message"
         add_single_liner "$@"
         [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
         ;;
-    list-subjects)
-        list_subjects
+    read)
+        "${PAGER:-cat}" "$ENTRY_FILE"
+        ;;
+    show-worklog)
+        echo "$WORKLOG"
+        echo ""
+        cat "$WORKLOG"
         ;;
     esac
 }
@@ -274,6 +283,7 @@ make_worklog () {
     echo "# .worklog created by $THISSCRIPT at $(date "+%Y-%m-%d %T (%a)")" | tee "$WORKLOG"
     echo "# Note: LOG_DIR is relative to the location of this .worklog file" |tee -a "$WORKLOG"
     echo "LOG_DIR = \"$LOG_DIR\"" | tee -a "$WORKLOG"
+    echo "DEFAULT_SUBJECT = \"$SUBJECT\"" | tee -a "$WORKLOG"
     echo ""
     ls -ld "$WORKLOG" "$LOG_DIR"
     exit 0
@@ -427,6 +437,11 @@ Print the command line syntax an option details.
 =item B<-i>
 
 Create a .worklog file in the current working directory
+
+=item B<-I>
+
+Show information about te current worklog (based on PWD).  Prints the path to
+the current worklog and then prints the contents of the file.
 
 =item B<-l> I<logdir>
 

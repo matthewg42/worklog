@@ -61,6 +61,10 @@ OPTIONS
    * - -i
      - 
      - Create a ``.worklog`` file in the current working directory
+   * - -I
+     - 
+     - Print the path to the current ``.worklog`` file, and then print the
+       contents of the file.
    * - -l 
      - *logdir*
      - Specify the path to thew log directory, relative to the .worklog file. 
