@@ -73,7 +73,9 @@ OPTIONS
        ignored.
    * - -r  
      - 
-     - Read the current day's log file using PAGER.
+     - Read the most recently edited log file. If a single parameter is 
+       provided, it is is interpretted as a number of days, and all files 
+       modified in the last that many days will be read.
    * - -s  
      - *subject*
      - Set the subject. The default value is taken from the DEFAULT_SUBJECT

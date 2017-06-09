@@ -131,7 +131,13 @@ main () {
         [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
         ;;
     read)
-        "${PAGER:-cat}" "$ENTRY_FILE"
+        if [ "$#" -eq 1 ]; then
+            # read files in the last $1 days
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |xargs ${PAGER:-cat}
+        else
+            # read the last file
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1 |xargs ${PAGER:-cat}
+        fi
         ;;
     show-worklog)
         echo "$WORKLOG"
@@ -213,8 +219,10 @@ edit_worklog () {
     echo "" >> "$ENTRY_FILE"
     echo "" >> "$ENTRY_FILE"
     edit_file "$ENTRY_FILE"
-    echo "" >> "$ENTRY_FILE"
-    echo "" >> "$ENTRY_FILE"
+    if [ -e "$ENTRY_FILE" ]; then
+        echo "" >> "$ENTRY_FILE"
+        echo "" >> "$ENTRY_FILE"
+    fi
 }
 
 edit_file () {
@@ -228,6 +236,14 @@ edit_file () {
         $EDTOR "$1"
         ;;
     esac
+
+    # remove empty file if exists
+    if [ -e "$ENTRY_FILE" ]; then
+        if ! egrep -q -v '^[ 	]*$' "$ENTRY_FILE"; then 
+            echo "removing empty file $ENTRY_FILE"
+            rm -f "$ENTRY_FILE"
+        fi
+    fi
 }
 
 # If the log file does not already exist (i.e. no logs yet today), create it
@@ -453,7 +469,9 @@ options, else it will be ignored.
 
 =item B<-r>
 
-Read the current day's log file using PAGER.
+Read previous logs.  If a parameter (after options) is provided, this is
+interpretted as a number of days to look back through, else the last day 
+where an entry was made is viewed.
 
 =item B<-s> I<subject>
 
