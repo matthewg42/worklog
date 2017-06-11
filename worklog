@@ -35,7 +35,7 @@ main () {
         show_version
     fi
 
-    goo="$(getopt avhD:iI1l:rew:s:S "$@")"
+    goo="$(getopt avhD:iI1l:rew:s:Sf "$@")"
     if [ $? -ne 0 ]; then
         usage 2
     fi
@@ -53,6 +53,10 @@ main () {
             ;;
         -e)
             ECHO=1
+            shift
+            ;;
+        -f)
+            CMD=files
             shift
             ;;
         -h)
@@ -130,13 +134,22 @@ main () {
         add_single_liner "$@"
         [ $ECHO -eq 1 ] && cat "$ENTRY_FILE"
         ;;
+    files)
+        if [ "$#" -eq 1 ]; then
+            # read files in the last $1 days
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |sort
+        else
+            # read the last file
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1
+        fi
+        ;;
     read)
         if [ "$#" -eq 1 ]; then
             # read files in the last $1 days
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |xargs ${PAGER:-cat}
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |sort |xargs cat | ${PAGER:-cat}
         else
             # read the last file
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1 |xargs ${PAGER:-cat}
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1 |xargs cat | ${PAGER:-cat}
         fi
         ;;
     show-worklog)
@@ -445,6 +458,12 @@ be.
 =item B<-e>
 
 After an entry has been made, echo the latest file to stdout.
+
+=item B<-f>
+
+List previous log files.  If a parameter (after options) is provided, this is
+interpretted as a number of days to look back through, else the last day 
+where an entry was made is viewed.
 
 =item B<--help> or B<-h>
 

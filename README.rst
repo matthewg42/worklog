@@ -55,6 +55,11 @@ OPTIONS
    * - -e  
      - 
      - After an entry has been made, echo the latest file to stdout.
+   * - -f  
+     - 
+     - List the most recently edited log file names. If a single parameter is 
+       provided, it is is interpretted as a number of days, and all files 
+       modified in the last that many days will be read.
    * - --help, -h
      - 
      - Show usage and exit
