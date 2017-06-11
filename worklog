@@ -229,7 +229,7 @@ edit_file () {
     [ -z "$EDITOR" ] && EDITOR=vi
     case "$EDITOR" in
     vi|vim)
-        $EDITOR -c ':set tw=99 fo-=l fo+=t' '+normal G$' '+startinsert!' "$1"
+        $EDITOR -c ':set tw=99 fo-=l fo+=t tabstop=4 shiftwidth=4 expandtab' '+normal G$' '+startinsert!' "$1"
         ;;
     *)
         # I don't know how editor X wants to be called... so do simple invocation
