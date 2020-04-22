@@ -211,7 +211,7 @@ add_single_liner () {
 }
 
 amend_worklog () {
-    [ -e "$ENTRY_FILE" ] && edit_file "$ENTRY_FILE" || echo "Nothing there"
+    [ -e "$ENTRY_FILE" ] && edit_file "$(realpath "$ENTRY_FILE")" || echo "Nothing there"
 }
 
 # Add a multi-line entry to the log file. This means adding the 
@@ -349,6 +349,7 @@ find_worklogrc () {
 
         D="${D%/*}"
     done
+    return 0
 }
 
 # Some useful function definitions
@@ -449,7 +450,7 @@ option, you must provide a message in the parameters, else nothing will happen.
 
 Amend previous entry rather than edit a new entry (i.e. don't add timestamp).
 
-=item B<-d>=I<level>
+=item B<-D> I<level>
 
 Print diagnostic messages while executing.  The value of I<level> must be an
 integer.  The higher the number, the more verbose the diagnostic output will
