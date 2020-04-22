@@ -35,8 +35,7 @@ main () {
         show_version
     fi
 
-    goo="$(getopt avhD:iI1l:rew:s:Sf "$@")"
-    if [ $? -ne 0 ]; then
+    if goo="$(getopt avhD:iI1l:rew:s:Sf "$@")"; then
         usage 2
     fi
     set -- $goo
@@ -109,7 +108,7 @@ main () {
 
     init
 
-    db_out 2 "command line parsed, parameters now: $@"
+    db_out 2 "command line parsed, parameters now: $*"
     db_out 2 "WORKLOG         = $WORKLOG"
     db_out 2 "LOG_DIR         = $LOG_DIR"
     db_out 2 "DEFAULT_SUBJECT = $DEFAULT_SUBJECT"
@@ -137,7 +136,7 @@ main () {
     files)
         if [ "$#" -eq 1 ]; then
             # read files in the last $1 days
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |sort
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" |sort
         else
             # read the last file
             find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1
@@ -146,7 +145,7 @@ main () {
     read)
         if [ "$#" -eq 1 ]; then
             # read files in the last $1 days
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -$1 |sort |xargs cat | ${PAGER:-cat}
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" |sort |xargs cat | ${PAGER:-cat}
         else
             # read the last file
             find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1 |xargs cat | ${PAGER:-cat}
@@ -163,7 +162,7 @@ main () {
 # Work out where we're going to put out log entry and set up
 # all the main variables used by other fuctions
 init () {
-    db_out 3 "init $@"
+    db_out 3 "init"
     # If WORKLOG is not already set (i.e. using the -w option), find 
     # the path to a .worklog file in PWD, or any of it's parents back
     # to the root directory.
@@ -175,7 +174,7 @@ init () {
 
     # Change into the directory where WORKLOG is found so we get correct
     # relative paths to logs
-    cd "${WORKLOG%/*}"
+    cd "${WORKLOG%/*}" || errex 1 "ERROR: cannot cd into ${WORKLOG%/*}"
 
     # We can over-ride the LOG_DIR from the .worklog file by speficying it
     # on the command line with the -l option
@@ -189,7 +188,7 @@ init () {
     # If default subject specified in WORKLOG file, set it, and then set the SUBJECT 
     # if it has not already been specified with the -s option
     s="$(sed -n '/^[ \t]*DEFAULT_SUBJECT[\t ]*=/ { s/[ \t]*DEFAULT_SUBJECT[\t ]*=[\t ]*"\(.*\)"[\t ]*$/\1/; p }' "$WORKLOG")"
-    [ ! -z "$s" ] && DEFAULT_SUBJECT="$s"
+    [ -n "$s" ] && DEFAULT_SUBJECT="$s"
     [ -z "$SUBJECT" ] && SUBJECT="$DEFAULT_SUBJECT"
 
     # Set the time and date for this log entry
@@ -205,7 +204,7 @@ init () {
 #
 # YYYY-MM-DD HH:MM:SS (day): ...
 add_single_liner () {
-    db_out 3 "add_single_liner $@"
+    db_out 3 "add_single_liner $*"
     make_log_file
     make_entry "$@"
 }
@@ -223,14 +222,12 @@ amend_worklog () {
 # [edited text in vi]
 # [blank line]
 edit_worklog () {
-    db_out 3 "edit_worklog $@"
+    db_out 3 "edit_worklog $*"
     make_log_file
     echo "" >> "$ENTRY_FILE"
     make_entry "$@"
     l="$(tail -1 "$ENTRY_FILE")" 
-    echo "$l" |sed 's/./-/g' >> "$ENTRY_FILE"
-    echo "" >> "$ENTRY_FILE"
-    echo "" >> "$ENTRY_FILE"
+    ( echo "${l//?/-}" ; echo ; echo ) >> "$ENTRY_FILE"
     edit_file "$ENTRY_FILE"
     if [ -e "$ENTRY_FILE" ]; then
         echo "" >> "$ENTRY_FILE"
@@ -239,20 +236,20 @@ edit_worklog () {
 }
 
 edit_file () {
-    [ -z "$EDITOR" ] && EDITOR=vi
+    [ -z "$EDITOR" ] && EDITOR="vi"
     case "$EDITOR" in
     vi|vim)
         $EDITOR -c ':set tw=99 fo-=l fo+=t tabstop=4 shiftwidth=4 expandtab' '+normal G$' '+startinsert!' "$1"
         ;;
     *)
         # I don't know how editor X wants to be called... so do simple invocation
-        $EDTOR "$1"
+        $EDITOR "$1"
         ;;
     esac
 
     # remove empty file if exists
     if [ -e "$ENTRY_FILE" ]; then
-        if ! egrep -q -v '^[ 	]*$' "$ENTRY_FILE"; then 
+        if ! grep -E -q -v '^[ 	]*$' "$ENTRY_FILE"; then 
             echo "removing empty file $ENTRY_FILE"
             rm -f "$ENTRY_FILE"
         fi
@@ -263,7 +260,7 @@ edit_file () {
 # and if necessary the directory in which it will reside.  Exit with failure
 # if this cannot be done
 make_log_file () {
-    db_out 3 "make_log_file $@"
+    db_out 3 "make_log_file"
     if [ ! -e "${ENTRY_FILE%/*}" ]; then
         mkdir -p "${ENTRY_FILE%/*}" || errex 1 "ERROR: can't make dir for log file"
     fi
@@ -282,17 +279,17 @@ make_log_file () {
 # have a newline for some reason, add that first, then add a timestamped line
 # with optional comment on that line
 make_entry () {
-    db_out 3 "make_entry $@"
+    db_out 3 "make_entry $*"
 
     # Check the file is either empty, or has a \n on the last line
     # if not, add a \n to the last line of the file
     if [ -s "$ENTRY_FILE" ]; then
-        tail -1 "$ENTRY_FILE" |od -tc |fgrep -q '\n' || echo "" >> "$ENTRY_FILE"
+        tail -1 "$ENTRY_FILE" | od -tc | grep -F -q '\n' || echo "" >> "$ENTRY_FILE"
     fi
 
     # Add the timestamp, and if parameters are passed, a heading
     if [ $# -gt 0 ]; then
-        echo "$ENTRY_DATETIME: $@" >> "$ENTRY_FILE"
+        echo "$ENTRY_DATETIME: $*" >> "$ENTRY_FILE"
     else
         echo "$ENTRY_DATETIME" >> "$ENTRY_FILE"
     fi
@@ -300,7 +297,7 @@ make_entry () {
 
 # Create a .worklog file in the current working directory, with 
 make_worklog () {
-    db_out 3 "make_worklog $@"
+    db_out 3 "make_worklog"
     db_out 3 "LOG_DIR=$LOG_DIR"
     if [ ! -e "$LOG_DIR" ]; then
         mkdir -p "$LOG_DIR" || errex 3 "ERROR: failed to create log dir: $LOG_DIR"
@@ -330,7 +327,7 @@ list_subjects () {
 }
 
 find_worklogrc () {
-    db_out 3 "find_worklogrc $@"
+    db_out 3 "find_worklogrc"
     D=$PWD
     while true; do
         # Find the worklog file
@@ -354,8 +351,8 @@ find_worklogrc () {
 
 # Some useful function definitions
 usage () {
-    pod2usage -v 1 $THISSCRIPT_FULL
-    exit ${1:-0}
+    pod2usage -v 1 "$THISSCRIPT_FULL"
+    exit "${1:-0}"
 }
 
 # Dump version info to stdout and exit
@@ -369,12 +366,12 @@ show_version () {
 db_out () {
     meslev="${1:-1}"
     shift
-    message="$@"
+    message="$*"
 
-    if [ $meslev -le ${DBLEV_S:-0} ]; then
-        if [ $meslev -lt 0 ]; then
+    if [ "$meslev" -le "${DBLEV_S:-0}" ]; then
+        if [ "$meslev" -lt 0 ]; then
             mestyp="$THISSCRIPT ERROR[$meslev]:"
-        elif [ $meslev -eq 0 ]; then
+        elif [ "$meslev" -eq 0 ]; then
             mestyp="$THISSCRIPT WARNING:"
         else
             mestyp="$THISSCRIPT DEBUG[$meslev]:"
@@ -389,7 +386,7 @@ errex () {
     e="$1"
     shift
     echo "$@" 1>&2
-    exit $e
+    exit "$e"
 }
 
 #
