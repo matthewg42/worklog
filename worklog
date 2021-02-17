@@ -35,7 +35,8 @@ main () {
         show_version
     fi
 
-    if goo="$(getopt avhD:iI1l:rew:s:Sf "$@")"; then
+    goo="$(getopt avhD:iI1l:rew:s:Sf "$@")"
+    if [ $? -ne 0 ]; then
         usage 2
     fi
     set -- $goo
@@ -174,7 +175,7 @@ init () {
 
     # Change into the directory where WORKLOG is found so we get correct
     # relative paths to logs
-    cd "${WORKLOG%/*}" || errex 1 "ERROR: cannot cd into ${WORKLOG%/*}"
+    cd "${WORKLOG%/*}" || exit 1
 
     # We can over-ride the LOG_DIR from the .worklog file by speficying it
     # on the command line with the -l option
@@ -227,11 +228,10 @@ edit_worklog () {
     echo "" >> "$ENTRY_FILE"
     make_entry "$@"
     l="$(tail -1 "$ENTRY_FILE")" 
-    ( echo "${l//?/-}" ; echo ; echo ) >> "$ENTRY_FILE"
+    echo -e "${l//./-}\n\n\n" >> "$ENTRY_FILE"
     edit_file "$ENTRY_FILE"
     if [ -e "$ENTRY_FILE" ]; then
-        echo "" >> "$ENTRY_FILE"
-        echo "" >> "$ENTRY_FILE"
+        echo -e "\n\n" >> "$ENTRY_FILE"
     fi
 }
 
@@ -284,7 +284,7 @@ make_entry () {
     # Check the file is either empty, or has a \n on the last line
     # if not, add a \n to the last line of the file
     if [ -s "$ENTRY_FILE" ]; then
-        tail -1 "$ENTRY_FILE" | od -tc | grep -F -q '\n' || echo "" >> "$ENTRY_FILE"
+        tail -1 "$ENTRY_FILE" |od -tc |grep -F -q '\n' || echo "" >> "$ENTRY_FILE"
     fi
 
     # Add the timestamp, and if parameters are passed, a heading
@@ -395,7 +395,9 @@ errex () {
 # Start Main Program
 
 main "$@"
-exit 0 # required to prevent shell from choking on the POD docs
+
+# POD docs
+cat <<EOD > /dev/null
 
 __END__
 
@@ -554,4 +556,5 @@ Please report bugs to the author.
 =head1 SEE ALSO
 
 =cut
+EOD
 
