@@ -3,8 +3,8 @@
 # LICENSE: GNU GPL v3
 
 PROGNAME="Simple work logging / diary system"
-VERSION="2.00"
-AUTHOR="Mouse, Jun 2017"
+VERSION="2.02"
+AUTHOR="Mouse, Feb 2020"
 WORKLOG=""
 DEFAULT_SUBJECT="general"
 SUBJECT=""
@@ -542,6 +542,14 @@ Mouse http://orthogonal-systems.co.uk/
 =head1 CHANGELOG
 
 =over
+
+=item Date:2021-02-18 Fix underline, Author MNG; version 2.02
+
+Fix bug introduced in 2.01 where underline was not made properly.
+
+=item Date:2021-02-17 Tweaks, Author MNG; version 2.01
+
+Add more shellcheck suggested changes
 
 =item Date:2017-06-03 Created, Author MNG
 
