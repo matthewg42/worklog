@@ -137,19 +137,19 @@ main () {
     files)
         if [ "$#" -eq 1 ]; then
             # read files in the last $1 days
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" |sort
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" | sort
         else
             # read the last file
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' | sort | tail -1
         fi
         ;;
     read)
         if [ "$#" -eq 1 ]; then
             # read files in the last $1 days
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" |sort |xargs cat | ${PAGER:-cat}
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' -mtime -"$1" | sort | xargs cat | ${PAGER:-cat}
         else
             # read the last file
-            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' |sort |tail -1 |xargs cat | ${PAGER:-cat}
+            find "$LOG_DIR/$SUBJECT" -type f -name '[0-9][0-9][0-9][0-9]*' | sort | tail -1 | xargs cat | ${PAGER:-cat}
         fi
         ;;
     show-worklog)
@@ -228,7 +228,7 @@ edit_worklog () {
     echo "" >> "$ENTRY_FILE"
     make_entry "$@"
     l="$(tail -1 "$ENTRY_FILE")" 
-    echo -e "${l//./-}\n\n\n" >> "$ENTRY_FILE"
+    echo -e "${l//?/-}\n\n\n" >> "$ENTRY_FILE"
     edit_file "$ENTRY_FILE"
     if [ -e "$ENTRY_FILE" ]; then
         echo -e "\n\n" >> "$ENTRY_FILE"
@@ -284,7 +284,7 @@ make_entry () {
     # Check the file is either empty, or has a \n on the last line
     # if not, add a \n to the last line of the file
     if [ -s "$ENTRY_FILE" ]; then
-        tail -1 "$ENTRY_FILE" |od -tc |grep -F -q '\n' || echo "" >> "$ENTRY_FILE"
+        tail -1 "$ENTRY_FILE" | od -tc | grep -F -q '\n' || echo "" >> "$ENTRY_FILE"
     fi
 
     # Add the timestamp, and if parameters are passed, a heading
@@ -307,7 +307,7 @@ make_worklog () {
     [ -e "$WORKLOG" ] && errex 2 "ERROR: $WORKLOG already exists"
     
     echo "# .worklog created by $THISSCRIPT at $(date "+%Y-%m-%d %T (%a)")" | tee "$WORKLOG"
-    echo "# Note: LOG_DIR is relative to the location of this .worklog file" |tee -a "$WORKLOG"
+    echo "# Note: LOG_DIR is relative to the location of this .worklog file" | tee -a "$WORKLOG"
     echo "LOG_DIR = \"$LOG_DIR\"" | tee -a "$WORKLOG"
     echo "DEFAULT_SUBJECT = \"$SUBJECT\"" | tee -a "$WORKLOG"
     echo ""
